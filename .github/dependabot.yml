@@ -13,8 +13,11 @@ updates:
       - "dependencies"
       - "go"
     commit-message:
+      # `include: "scope"` is deliberately absent. It appends "(deps)" to the
+      # prefix, so pairing it with a prefix that already carries a scope yields
+      # "chore(deps)(deps):" — a double scope that is not valid Conventional
+      # Commits and that semantic-release's analyser may fail to parse.
       prefix: "chore(deps)"
-      include: "scope"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -28,5 +31,5 @@ updates:
       - "dependencies"
       - "ci"
     commit-message:
+      # See the note above: the scope lives in the prefix, not in `include`.
       prefix: "chore(ci)"
-      include: "scope"
