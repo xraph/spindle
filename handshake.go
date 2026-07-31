@@ -44,6 +44,10 @@ func NewController(cfg ControllerConfig) (*Controller, error) {
 		return nil, ErrMissingPeerStatic
 	}
 
+	if len(cfg.Scope) > MaxScopeLen {
+		return nil, ErrScopeTooLong
+	}
+
 	hs, err := noise.NewHandshakeState(noise.Config{
 		CipherSuite:   CipherSuite,
 		Random:        cfg.Random,
@@ -165,6 +169,10 @@ func NewDevice(cfg DeviceConfig) (*Device, error) {
 		return nil, ErrPinAndCommissioning
 	case !cfg.Commissioning && len(cfg.ControllerStatic) != DHLen:
 		return nil, ErrMissingPeerStatic
+	}
+
+	if len(cfg.Scope) > MaxScopeLen {
+		return nil, ErrScopeTooLong
 	}
 
 	// PeerStatic is deliberately not set here. In IK the only pre-message is the

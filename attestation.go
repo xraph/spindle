@@ -3,6 +3,7 @@ package spindle
 import (
 	"crypto/ed25519"
 	"encoding/binary"
+	"math"
 )
 
 // AttestationInput builds the byte string a device signs to attest its running
@@ -21,7 +22,9 @@ func AttestationInput(binding, firmwareHash []byte, firmwareVersion int64, nonce
 	out := make([]byte, 0, len(binding)+len(firmwareHash)+len(nonce)+16)
 	out = appendField(out, binding)
 	out = appendField(out, firmwareHash)
-	out = binary.BigEndian.AppendUint64(out, uint64(firmwareVersion))
+	// int64 → uint64 is a lossless reinterpretation, and both endpoints perform
+	// the identical conversion, so a negative version still binds consistently.
+	out = binary.BigEndian.AppendUint64(out, uint64(firmwareVersion)) //nolint:gosec // reinterpretation, not truncation
 	out = appendField(out, nonce)
 	return out
 }
@@ -37,7 +40,17 @@ func VerifyAttestation(devicePub ed25519.PublicKey, sig, binding, firmwareHash [
 	return ed25519.Verify(devicePub, AttestationInput(binding, firmwareHash, firmwareVersion, nonce), sig)
 }
 
+// maxFieldLen bounds a length-prefixed attestation field. The prefix is 32 bits,
+// so a longer field would wrap it and describe itself as shorter than it is —
+// which is the field-boundary ambiguity the prefixes exist to remove.
+const maxFieldLen = math.MaxUint32
+
 func appendField(acc, field []byte) []byte {
-	acc = binary.BigEndian.AppendUint32(acc, uint32(len(field)))
+	if len(field) > maxFieldLen {
+		field = field[:maxFieldLen]
+	}
+
+	acc = binary.BigEndian.AppendUint32(acc, uint32(len(field))) //nolint:gosec // bounded above by maxFieldLen
+
 	return append(acc, field...)
 }

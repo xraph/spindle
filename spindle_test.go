@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -636,7 +637,7 @@ func TestFingerprintWords(t *testing.T) {
 	if n := len(bytes.Split([]byte(got), []byte("-"))); n != FingerprintWordCount {
 		t.Errorf("fingerprint %q has %d words, want %d", got, n, FingerprintWordCount)
 	}
-	if bytes.Contains([]byte(got), []byte("--")) {
+	if strings.Contains(got, "--") {
 		t.Errorf("fingerprint %q contains an empty word", got)
 	}
 	if again := FingerprintWords(transcript); again != got {
@@ -887,5 +888,43 @@ func TestNewDeviceKeysFrom_roundTrip(t *testing.T) {
 	}
 	if _, err := NewDeviceKeysFrom([]byte{9}); err == nil {
 		t.Error("short key accepted")
+	}
+}
+
+func TestScopeLengthIsBounded(t *testing.T) {
+	// The prologue's length prefix is 16 bits. A longer scope would wrap it, and
+	// two different scopes could then produce the same prologue — the collision
+	// the prefix exists to prevent. Both constructors must refuse rather than
+	// silently bind the wrong thing.
+	ctrlID, err := NewControllerIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	devKeys, err := NewDeviceKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	long := strings.Repeat("s", MaxScopeLen+1)
+
+	if _, err := NewController(ControllerConfig{
+		Identity: ctrlID, DeviceStatic: devKeys.Static.Public, Scope: long,
+	}); !errors.Is(err, ErrScopeTooLong) {
+		t.Errorf("controller: %v, want ErrScopeTooLong", err)
+	}
+
+	if _, err := NewDevice(DeviceConfig{
+		Keys: devKeys, ControllerStatic: ctrlID.Static.Public, Scope: long,
+	}); !errors.Is(err, ErrScopeTooLong) {
+		t.Errorf("device: %v, want ErrScopeTooLong", err)
+	}
+
+	// At the limit it must still work.
+	atLimit := strings.Repeat("s", MaxScopeLen)
+	if _, err := NewController(ControllerConfig{
+		Identity: ctrlID, DeviceStatic: devKeys.Static.Public, Scope: atLimit,
+	}); err != nil {
+		t.Errorf("scope at the limit rejected: %v", err)
 	}
 }

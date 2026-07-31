@@ -1,5 +1,10 @@
 # spindle
 
+[![CI](https://github.com/xraph/spindle/actions/workflows/ci.yml/badge.svg)](https://github.com/xraph/spindle/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/xraph/spindle.svg)](https://pkg.go.dev/github.com/xraph/spindle)
+[![Go Report Card](https://goreportcard.com/badge/github.com/xraph/spindle)](https://goreportcard.com/report/github.com/xraph/spindle)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 End-to-end secure channel for remote device control across an untrusted message
 broker.
 
@@ -179,6 +184,14 @@ attestation tampering, and wordlist completeness.
 ```
 go test -race ./...
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security-sensitive areas and the
+cross-endpoint testing norm are called out there.
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md) — please do not open a
+public issue.
 
 ## License
 

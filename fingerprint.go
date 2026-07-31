@@ -32,7 +32,7 @@ func FingerprintWords(transcript []byte) string {
 	digest := h.Sum(nil)
 
 	parts := make([]string, FingerprintWordCount)
-	for i := 0; i < FingerprintWordCount; i++ {
+	for i := range FingerprintWordCount {
 		parts[i] = fingerprintWordlist[digest[i]]
 	}
 	return strings.Join(parts, "-")

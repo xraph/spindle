@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  go-test:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # go.mod requires 1.25; anything older cannot build this module.
+        go-version: ['1.25', '1.26']
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+      # -race is not optional here. The session holds cipher state behind a
+      # mutex and is documented as safe for concurrent use; a data race in that
+      # path is a nonce-reuse bug, not a flake.
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        if: matrix.go-version == '1.25'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          flags: go
+          name: go-coverage
+        continue-on-error: true
+
+  go-lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.6.1
+          args: --timeout=5m
+
+  go-security:
+    name: Go Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out results.sarif ./...'
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
+
+  govulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+
+      # A cryptographic library inherits the vulnerabilities of what it links.
+      # This catches an advisory against flynn/noise or x/crypto without waiting
+      # for someone to notice the Dependabot mail.
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Check for TODOs on main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if grep -rn "TODO\|FIXME\|XXX" --include="*.go" .; then
+            echo "Found TODO/FIXME/XXX on main"
+            exit 1
+          fi
+
+      - name: Check for debug statements
+        run: |
+          if grep -rn "fmt.Print\|log.Print" --include="*.go" --exclude="*_test.go" .; then
+            echo "Found debug print statements in production code"
+            exit 1
+          fi
+
+      # The protocol name is load-bearing: it is what reviewers and interop
+      # partners rely on. A suite change that forgets to update the advertised
+      # name would be a silent interop break, so the assertion is a build gate
+      # rather than only a unit test.
+      - name: Assert the advertised protocol name matches the suite
+        run: go test -run TestProtocolName_matchesSuite -v ./...

@@ -22,6 +22,11 @@ const ProtocolLabel = "spindle/v2"
 // need more must fragment above this layer.
 const MaxFramePayload = 65535 - 16
 
+// MaxScopeLen is the longest deployment scope the prologue can carry, bounded by
+// its 16-bit length prefix. A scope beyond this would wrap the prefix and let two
+// different scopes hash to the same prologue, defeating the binding.
+const MaxScopeLen = 65535
+
 // CipherSuite is the single suite this package uses. X25519 for DH,
 // ChaCha20-Poly1305 for AEAD (constant-time in software, so devices without
 // AES-NI are not penalised), BLAKE2b for hashing.
@@ -38,13 +43,25 @@ var CipherSuite = noise.NewCipherSuite(noise.DH25519, noise.CipherChaChaPoly, no
 //
 // scope is length-prefixed so that adjacent values cannot collide — without it
 // a scope of "ws" followed by trailing bytes could hash identically to "wsx".
+//
+// scope must be at most MaxScopeLen bytes. Longer values are truncated to that
+// limit rather than wrapping the 16-bit prefix, because a wrapped prefix would
+// reinstate exactly the collision this construction prevents. NewController and
+// NewDevice reject over-long scopes outright, so the truncation here is a
+// backstop for direct callers rather than a path any handshake reaches.
 func BuildPrologue(scope string) []byte {
+	if len(scope) > MaxScopeLen {
+		scope = scope[:MaxScopeLen]
+	}
+
 	out := make([]byte, 0, len(ProtocolLabel)+2+len(scope))
 	out = append(out, ProtocolLabel...)
+
 	var n [2]byte
-	binary.BigEndian.PutUint16(n[:], uint16(len(scope)))
+	binary.BigEndian.PutUint16(n[:], uint16(len(scope))) //nolint:gosec // bounded above by MaxScopeLen
 	out = append(out, n[:]...)
 	out = append(out, scope...)
+
 	return out
 }
 

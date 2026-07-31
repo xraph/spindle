@@ -40,6 +40,11 @@ var (
 	// its private key.
 	ErrKeyMismatch = errors.New("spindle: public key does not match private key")
 
+	// ErrScopeTooLong means a config carried a scope beyond MaxScopeLen. The
+	// prologue's 16-bit length prefix cannot describe it, and silently truncating
+	// would let two different scopes produce the same prologue.
+	ErrScopeTooLong = errors.New("spindle: scope exceeds the maximum length the prologue can bind")
+
 	// ErrPinAndCommissioning means a device config set both ControllerStatic and
 	// Commissioning. They are mutually exclusive: one enforces a pin, the other
 	// suspends enforcement, and guessing which was intended is not this

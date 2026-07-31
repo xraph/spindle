@@ -111,13 +111,13 @@ func (s *Session) Seal(aad, plaintext []byte) ([]byte, error) {
 // window with forged frames. The cost is that a replayed frame is decrypted
 // before being rejected — acceptable, since only a genuine captured frame can
 // reach that point at all.
-func (s *Session) Open(aad, frame []byte) (plaintext []byte, seq uint64, err error) {
+func (s *Session) Open(aad, frame []byte) ([]byte, uint64, error) {
 	if len(frame) < HeaderSize+16 {
 		return nil, 0, ErrShortFrame
 	}
 
 	id := binary.BigEndian.Uint64(frame[0:8])
-	seq = binary.BigEndian.Uint64(frame[8:16])
+	seq := binary.BigEndian.Uint64(frame[8:16])
 	if id != s.id {
 		return nil, seq, ErrSessionMismatch
 	}
@@ -129,7 +129,8 @@ func (s *Session) Open(aad, frame []byte) (plaintext []byte, seq uint64, err err
 	defer s.mu.Unlock()
 
 	s.rx.SetNonce(seq)
-	plaintext, err = s.rx.Decrypt(nil, aad, frame[HeaderSize:])
+
+	plaintext, err := s.rx.Decrypt(nil, aad, frame[HeaderSize:])
 	if err != nil {
 		return nil, seq, fmt.Errorf("spindle: open: %w", err)
 	}
