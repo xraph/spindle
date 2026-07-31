@@ -179,3 +179,10 @@ attestation tampering, and wordlist completeness.
 ```
 go test -race ./...
 ```
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
+
+Third-party attribution is in [NOTICE](NOTICE); trademark usage is covered by
+[TRADEMARKS](TRADEMARKS).
